@@ -1,5 +1,6 @@
 import os
 import re
+import sqlite3
 from threading import Thread
 from bs4 import BeautifulSoup
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -15,17 +16,21 @@ app = Flask('')
 
 @app.route('/')
 def home():
-  return 'Bot is active and running!'
+  return 'Bot is active and running with memory!'
 
 
+# Запуск Flask-сервера в фоновом потоке сразу при старте,
+# чтобы Render мгновенно фиксировал открытый порт
 def run_web():
   port = int(os.environ.get('PORT', 10000))
   app.run(host='0.0.0.0', port=port)
 
 
-Thread(target=run_web).daemon = True
+web_thread = Thread(target=run_web)
+web_thread.daemon = True
+web_thread.start()
 
-# Переменные
+# Переменные окружения
 TOKEN = os.environ.get('BOT_TOKEN')
 USER_ID = int(os.environ.get('USER_ID', 0))
 GEMINI_KEY = os.environ.get('GEMINI_API_KEY')
@@ -35,7 +40,50 @@ model = genai.GenerativeModel('gemini-2.5-pro')
 bot = telebot.TeleBot(TOKEN)
 
 
-# Утренняя сводка (08:00 по Киеву)
+# Инициализация базы данных для памяти
+def init_db():
+  conn = sqlite3.connect('chat_history.db')
+  cursor = conn.cursor()
+  cursor.execute('''
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            role TEXT,
+            content TEXT
+        )
+    ''')
+  conn.commit()
+  conn.close()
+
+
+init_db()
+
+
+# Сохранение сообщения в базу
+def save_message(role, content):
+  conn = sqlite3.connect('chat_history.db')
+  cursor = conn.cursor()
+  cursor.execute(
+      'INSERT INTO messages (role, content) VALUES (?, ?)', (role, content)
+  )
+  conn.commit()
+  conn.close()
+
+
+# Загрузка последних сообщений для контекста (последние 10 штук)
+def get_chat_history():
+  conn = sqlite3.connect('chat_history.db')
+  cursor = conn.cursor()
+  cursor.execute('SELECT role, content FROM messages ORDER BY id DESC LIMIT 10')
+  rows = cursor.fetchall()
+  conn.close()
+
+  history = []
+  for role, content in reversed(rows):
+    history.append({'role': role, 'parts': [content]})
+  return history
+
+
+# Утренняя и вечерняя сводки
 def send_morning_digest():
   if not USER_ID:
     return
@@ -48,11 +96,11 @@ def send_morning_digest():
     bot.send_message(
         USER_ID, f'🌅 **Утренняя сводка дня:**\n\n{response.text}'
     )
+    save_message('model', response.text)
   except Exception as e:
     bot.send_message(USER_ID, f'Ошибка утренней сводки: {e}')
 
 
-# Вечерняя сводка (21:00 по Киеву)
 def send_evening_digest():
   if not USER_ID:
     return
@@ -65,11 +113,12 @@ def send_evening_digest():
     bot.send_message(
         USER_ID, f'🌙 **Вечерняя сводка и итоги:**\n\n{response.text}'
     )
+    save_message('model', response.text)
   except Exception as e:
     bot.send_message(USER_ID, f'Ошибка вечерней сводки: {e}')
 
 
-# Настройка планировщика
+# Планировщик
 scheduler = BackgroundScheduler(timezone=pytz.timezone('Europe/Kyiv'))
 scheduler.add_job(send_morning_digest, 'cron', hour=8, minute=0)
 scheduler.add_job(send_evening_digest, 'cron', hour=21, minute=0)
@@ -82,8 +131,8 @@ def send_welcome(message):
     return
   bot.reply_to(
       message,
-      'Привет! Твой личный ИИ-ассистент на Gemini Pro запущен. Умею делать'
-      ' саммари по ссылкам, присылать утренние и вечерние сводки! 🚀',
+      'Привет! Твой ИИ-ассистент с памятью, саммари ссылок и сводками готов к'
+      ' работе! 🚀',
   )
 
 
@@ -121,11 +170,19 @@ def handle_message(message):
           f'📄 **Краткая выжимка статьи:**\n\n{response.text}',
           parse_mode='Markdown',
       )
+      save_message('user', f'Скинул ссылку: {url}')
+      save_message('model', response.text)
     except Exception as e:
       bot.reply_to(message, f'Не удалось обработать ссылку. Ошибка: {e}')
   else:
     try:
-      response = model.generate_content(text)
+      save_message('user', text)
+
+      chat = model.start_chat(history=get_chat_history())
+      response = chat.send_message(text)
+
+      save_message('model', response.text)
+
       bot.reply_to(message, response.text)
     except Exception as e:
       bot.reply_to(message, f'Произошла ошибка при обращении к ИИ: {e}')
