@@ -1,10 +1,12 @@
 import os
 from threading import Thread
+from apscheduler.schedulers.background import BackgroundScheduler
+import pytz
 import telebot
 from flask import Flask
 import google.generativeai as genai
 
-# Мини-веб-сервер для удовлетворения требований Render к портам
+# Flask для Render
 app = Flask('')
 
 
@@ -18,18 +20,37 @@ def run_web():
   app.run(host='0.0.0.0', port=port)
 
 
-# Запуск веб-сервера в фоновом потоке
 Thread(target=run_web).daemon = True
 
-# Инициализация бота и Gemini
+# Переменные
 TOKEN = os.environ.get('BOT_TOKEN')
 USER_ID = int(os.environ.get('USER_ID', 0))
 GEMINI_KEY = os.environ.get('GEMINI_API_KEY')
 
 genai.configure(api_key=GEMINI_KEY)
 model = genai.GenerativeModel('gemini-2.5-pro')
-
 bot = telebot.TeleBot(TOKEN)
+
+
+# Функция утреннего будильника
+def send_morning_wake_up():
+  if not USER_ID:
+    return
+  try:
+    prompt = (
+        'Напиши бодрое, энергичное и короткое утреннее приветствие и 1 полезную'
+        ' мысль или совет на день.'
+    )
+    response = model.generate_content(prompt)
+    bot.send_message(USER_ID, f'⏰ **Утренний будильник!**\n\n{response.text}')
+  except Exception as e:
+    bot.send_message(USER_ID, f'Ошибка утреннего будильника: {e}')
+
+
+# Настройка планировщика (время 07:30, часовой пояс Europe/Kyiv)
+scheduler = BackgroundScheduler(timezone=pytz.timezone('Europe/Kyiv'))
+scheduler.add_job(send_morning_wake_up, 'cron', hour=8, minute=00)
+scheduler.start()
 
 
 @bot.message_handler(commands=['start'])
@@ -38,8 +59,8 @@ def send_welcome(message):
     return
   bot.reply_to(
       message,
-      'Привет! Я твой личный ИИ-ассистент на базе Gemini Pro. Готов к работе'
-      ' 24/7.',
+      'Привет! Я твой личный ИИ-ассистент на базе Gemini Pro с функцией'
+      ' утреннего будильника! ⏰',
   )
 
 
