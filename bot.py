@@ -1,7 +1,10 @@
 import os
+import re
 from threading import Thread
+from bs4 import BeautifulSoup
 from apscheduler.schedulers.background import BackgroundScheduler
 import pytz
+import requests
 import telebot
 from flask import Flask
 import google.generativeai as genai
@@ -32,24 +35,44 @@ model = genai.GenerativeModel('gemini-2.5-pro')
 bot = telebot.TeleBot(TOKEN)
 
 
-# Функция утреннего будильника
-def send_morning_wake_up():
+# Утренняя сводка (08:00 по Киеву)
+def send_morning_digest():
   if not USER_ID:
     return
   try:
     prompt = (
-        'Напиши бодрое, энергичное и короткое утреннее приветствие и 1 полезную'
-        ' мысль или совет на день.'
+        'Напиши бодрое утреннее приветствие, задай фокус на продуктивность и'
+        ' дай 1 ценный совет на день.'
     )
     response = model.generate_content(prompt)
-    bot.send_message(USER_ID, f'⏰ **Утренний будильник!**\n\n{response.text}')
+    bot.send_message(
+        USER_ID, f'🌅 **Утренняя сводка дня:**\n\n{response.text}'
+    )
   except Exception as e:
-    bot.send_message(USER_ID, f'Ошибка утреннего будильника: {e}')
+    bot.send_message(USER_ID, f'Ошибка утренней сводки: {e}')
 
 
-# Настройка планировщика (время 07:30, часовой пояс Europe/Kyiv)
+# Вечерняя сводка (21:00 по Киеву)
+def send_evening_digest():
+  if not USER_ID:
+    return
+  try:
+    prompt = (
+        'Напиши спокойное вечернее подведение итогов, пожелай хорошего отдыха'
+        ' и задай один вопрос для рефлексии прошедшего дня.'
+    )
+    response = model.generate_content(prompt)
+    bot.send_message(
+        USER_ID, f'🌙 **Вечерняя сводка и итоги:**\n\n{response.text}'
+    )
+  except Exception as e:
+    bot.send_message(USER_ID, f'Ошибка вечерней сводки: {e}')
+
+
+# Настройка планировщика
 scheduler = BackgroundScheduler(timezone=pytz.timezone('Europe/Kyiv'))
-scheduler.add_job(send_morning_wake_up, 'cron', hour=8, minute=00)
+scheduler.add_job(send_morning_digest, 'cron', hour=8, minute=0)
+scheduler.add_job(send_evening_digest, 'cron', hour=21, minute=0)
 scheduler.start()
 
 
@@ -59,8 +82,8 @@ def send_welcome(message):
     return
   bot.reply_to(
       message,
-      'Привет! Я твой личный ИИ-ассистент на базе Gemini Pro с функцией'
-      ' утреннего будильника! ⏰',
+      'Привет! Твой личный ИИ-ассистент на Gemini Pro запущен. Умею делать'
+      ' саммари по ссылкам, присылать утренние и вечерние сводки! 🚀',
   )
 
 
@@ -68,11 +91,44 @@ def send_welcome(message):
 def handle_message(message):
   if message.from_user.id != USER_ID:
     return
-  try:
-    response = model.generate_content(message.text)
-    bot.reply_to(message, response.text)
-  except Exception as e:
-    bot.reply_to(message, f'Произошла ошибка при обращении к ИИ: {e}')
+
+  text = message.text.strip()
+  url_match = re.search(r'https?://[^\s]+', text)
+
+  if url_match:
+    url = url_match.group(0)
+    bot.reply_to(message, '🔗 Читаю статью по ссылке и делаю выжимку...')
+    try:
+      headers = {'User-Agent': 'Mozilla/5.0'}
+      page = requests.get(url, headers=headers, timeout=10)
+      soup = BeautifulSoup(page.content, 'html.parser')
+
+      for script in soup(['script', 'style', 'nav', 'footer', 'header']):
+        script.decompose()
+
+      page_text = soup.get_text(separator=' ', strip=True)
+      if len(page_text) > 15000:
+        page_text = page_text[:15000]
+
+      prompt = (
+          f'Проанализируй текст веб-страницы и составь краткую выжимку'
+          f' (Summary) ровно в 5 ключевых тезисах на русском языке:\n\n{page_text}'
+      )
+      response = model.generate_content(prompt)
+
+      bot.reply_to(
+          message,
+          f'📄 **Краткая выжимка статьи:**\n\n{response.text}',
+          parse_mode='Markdown',
+      )
+    except Exception as e:
+      bot.reply_to(message, f'Не удалось обработать ссылку. Ошибка: {e}')
+  else:
+    try:
+      response = model.generate_content(text)
+      bot.reply_to(message, response.text)
+    except Exception as e:
+      bot.reply_to(message, f'Произошла ошибка при обращении к ИИ: {e}')
 
 
 if __name__ == '__main__':
