@@ -29,7 +29,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 USER_ID = int(os.environ.get("USER_ID", 0))
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
-genai.configure(api_key=GEMINI_KEY)
+genai.configure(api_key=GEMINI_KEY, transport="rest")
 model = genai.GenerativeModel("gemini-1.5-flash")
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -84,11 +84,8 @@ def handle_message(message):
       bot.reply_to(message, response.text)
 
   except Exception as e:
-    bot.reply_to(
-        message,
-        "⚠️ Сервер временно думал слишком долго (тайм-аут). Попробуй отправить"
-        " сообщение еще раз.",
-    )
+        print(f"Ошибочка: {e}"
+        bot.reply_to(message, f"❌ Реальная ошибка: {e}")
 
 
 if __name__ == "__main__":
