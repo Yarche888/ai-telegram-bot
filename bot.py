@@ -33,7 +33,7 @@ def check_access(message):
 
 def ask_gemini(prompt_text):
     """Прямой запрос к Gemini API через requests, минуя кривые SDK"""
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={GEMINI_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
@@ -91,7 +91,7 @@ def handle_message(message):
             answer = ask_gemini(text)
             bot.reply_to(message, answer)
 
-### 
+
     except Exception as e:
         print("Ошибочка:", e)
         bot.reply_to(message, f"❌ Реальная ошибка: {e}")
