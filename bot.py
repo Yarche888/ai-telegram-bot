@@ -50,26 +50,6 @@ def ask_gemini(prompt_text):
             return "Получен странный ответ от модели."
     else:
         return f"Ошибка API Google ({response.status_code}): {response.text}"
-    
-    response = requests.post(url, json=payload, headers=headers, timeout=15)
-    if response.status_code == 200:
-        data = response.json()
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception:
-            return "Получен странный ответ от модели."
-    else:
-        return f"Ошибка API Google ({response.status_code}): {response.text}"
-    
-    response = requests.post(url, json=payload, headers=headers, timeout=15)
-    if response.status_code == 200:
-        data = response.json()
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception:
-            return "Получен странный ответ от модели."
-    else:
-        return f"Ошибка API Google ({response.status_code}): {response.text}"
 
 @bot.message_handler(commands=["start"])
 def send_welcome(message):
@@ -81,37 +61,35 @@ def send_welcome(message):
 def handle_message(message):
     if not check_access(message):
         return
-
+        
     text = message.text.strip()
-
+    
     try:
         # Обработка ссылок
         if text.startswith("http://") or text.startswith("https://"):
             bot.reply_to(message, "⏳ Читаю статью, подожди секунду...")
-
+            
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             }
             page = requests.get(text, headers=headers, timeout=8)
             soup = BeautifulSoup(page.text, "html.parser")
-
+            
             paragraphs = soup.find_all("p")
             article_text = " ".join([p.get_text() for p in paragraphs])
             if not article_text.strip():
                 article_text = soup.get_text()
-
+                
             article_text = article_text[:4000]
             prompt = f"Сделай краткую и четкую выжимку (summary) статьи:\n\n{article_text}"
             
             answer = ask_gemini(prompt)
             bot.reply_to(message, f"📌 **Выжимка статьи:**\n\n{answer}")
-
         else:
             # Обычный текст
             answer = ask_gemini(text)
             bot.reply_to(message, answer)
-
-
+            
     except Exception as e:
         print("Ошибочка:", e)
         bot.reply_to(message, f"❌ Реальная ошибка: {e}")
