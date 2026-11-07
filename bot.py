@@ -189,4 +189,4 @@ def handle_message(message):
 
 
 if __name__ == '__main__':
-  bot.infinity_polling()
+  bot.infinity_polling(skip_pending=True)
