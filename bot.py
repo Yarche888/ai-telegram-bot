@@ -1,4 +1,5 @@
 import os
+import time
 from threading import Thread
 import telebot
 import requests
@@ -88,9 +89,18 @@ def handle_message(message):
         bot.reply_to(message, f"❌ Реальная ошибка: {e}")
 
 
+
 if __name__ == "__main__":
-    try:
-        bot.remove_webhook()
-        bot.infinity_polling(timeout=10, long_polling_timeout=5)
-    except Exception as e:
-        print("Ошибка поллинга:", e)
+    # Даем старому процессу на Render полностью умереть перед запуском нового
+    print("⏳ Ожидание завершения предыдущих сессий...")
+    time.sleep(5)
+    
+    while True:
+        try:
+            print("🚀 Запуск поллинга бота...")
+            bot.remove_webhook()
+            # Уменьшаем таймауты, чтобы сессия быстрее сбрасывалась при обрывах
+            bot.infinity_polling(timeout=5, long_polling_timeout=3)
+        except Exception as e:
+            print(f"⚠️ Ошибка поллинга (перезапуск через 5 сек): {e}")
+            time.sleep(5)
