@@ -75,12 +75,12 @@ def handle_message(message):
       article_text = article_text[:4000]
 
       prompt = f"Сделай краткую и четкую выжимку (summary) статьи:\n\n{article_text}"
-      response = model.generate_content(prompt, request_options={"timeout": 15})
+      response = model.generate_content(prompt)
       bot.reply_to(message, f"📌 **Выжимка статьи:**\n\n{response.text}")
 
     else:
       # Обычный текст с защитным таймаутом
-      response = model.generate_content(text, request_options={"timeout": 15})
+      response = model.generate_content(text)
       bot.reply_to(message, response.text)
 
   except Exception as e:
