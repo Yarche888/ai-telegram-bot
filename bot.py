@@ -26,7 +26,7 @@ web_thread.daemon = True
 web_thread.start()
 
 # Переменные окружения
-TOKEN = os.environ.get("TOKEN")  # или BOT_TOKEN
+TOKEN = os.environ.get('BOT_TOKEN')  # или BOT_TOKEN
 USER_ID = int(os.environ.get("USER_ID", 0))
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
