@@ -87,16 +87,19 @@ def handle_message(message):
         bot.reply_to(message, f"❌ Реальная ошибка: {e}")
 
 if __name__ == "__main__":
-    # Даем старому процессу на Render полностью умереть перед запуском нового
     print("⏳ Ожидание завершения предыдущих сессий...")
-    time.sleep(5)
+    time.sleep(3)
     
+    print("🚀 Запуск ручного пуллинга бота...")
+    bot.remove_webhook()
+    
+    offset = 0
     while True:
         try:
-            print("🚀 Запуск поллинга бота...")
-            bot.remove_webhook()
-            # Уменьшаем таймауты, чтобы сессия быстрее сбрасывалась при обрывах
-            bot.infinity_polling(timeout=5, long_polling_timeout=3)
+            updates = bot.get_updates(offset=offset, timeout=20)
+            for update in updates:
+                offset = update.update_id + 1
+                bot.process_new_updates([update])
         except Exception as e:
-            print(f"⚠️ Ошибка поллинга (перезапуск через 5 сек): {e}")
-            time.sleep(5)
+            print(f"⚠️ Ошибка пуллинга: {e}")
+            time.sleep(3)
