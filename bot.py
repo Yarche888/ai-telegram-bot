@@ -6,22 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 from flask import Flask
 
-# Flask-сервер для удержания порта Render
-app = Flask(__name__)
-
-@app.route("/")
-def index():
-    return "Bot is active!"
-
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
-
-web_thread = Thread(target=run_web)
-web_thread.daemon = True
-web_thread.start()
-
-# Переменные окружения
+# Загружаем переменные окружения
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 USER_ID = int(os.environ.get("USER_ID", 0))
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
@@ -32,7 +17,7 @@ def check_access(message):
     return message.from_user.id == USER_ID
 
 def ask_gemini(prompt_text):
-    """Прямой запрос к модели с увеличенным таймаутом"""
+    """Запрос к модели с автоматическим повтором при ошибке 503"""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={GEMINI_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
@@ -41,72 +26,77 @@ def ask_gemini(prompt_text):
         }]
     }
     
-    try:
-        # Увеличили таймаут до 30 секунд
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
-        if response.status_code == 200:
-            data = response.json()
-            try:
-                return data["candidates"][0]["content"]["parts"][0]["text"]
-            except Exception:
-                return "Получен странный ответ от модели."
-        else:
-            return f"Ошибка API Google ({response.status_code}): {response.text}"
-    except requests.exceptions.Timeout:
-        return "⚠️ Превышено время ожидания ответа от Google. Попробуй повторить запрос еще раз."
-    except Exception as e:
-        return f"❌ Ошибка соединения: {e}"
+    # Делаем до 3 попыток при временных ошибках
+    for attempt in range(3):
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            if response.status_code == 200:
+                data = response.json()
+                try:
+                    return data["candidates"][0]["content"]["parts"][0]["text"]
+                except Exception:
+                    return "Получен странный ответ от модели."
+            elif response.status_code == 503:
+                # Если сервер перегружен, ждем 3 секунды и пробуем снова
+                time.sleep(3)
+                continue
+            else:
+                return f"Ошибка API Google ({response.status_code}): {response.text}"
+        except requests.exceptions.Timeout:
+            if attempt == 2:
+                return "⚠️ Превышено время ожидания ответа от Google. Попробуй повторить запрос."
+            time.sleep(2)
+        except Exception as e:
+            return f"❌ Ошибка соединения: {e}"
+            
+    return "⚠️ Сервер Google временно перегружен (ошибка 503). Попробуй отправить сообщение еще раз через пару секунд."
 
-@bot.message_handler(commands=["start"])
+@bot.message_handler(commands=['start'])
 def send_welcome(message):
     if not check_access(message):
+        bot.reply_to(message, "Доступ запрещен.")
         return
     bot.reply_to(message, "Привет! Бот на базе Gemini (прямой API) запущен и готов к работе.")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     if not check_access(message):
+        bot.reply_to(message, "Доступ запрещен.")
         return
-        
-    text = message.text.strip()
     
+    # Отправляем временное сообщение, пока думает нейросеть
+    waiting_msg = bot.reply_to(message, "⏳ Думаю над ответом...")
+    
+    answer = ask_gemini(message.text)
+    
+    # Редактируем сообщение с ответом
     try:
-        # Обработка ссылок
-        if text.startswith("http://") or text.startswith("https://"):
-            bot.reply_to(message, "⏳ Читаю статью, подожди секунду...")
-            
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
-            page = requests.get(text, headers=headers, timeout=8)
-            soup = BeautifulSoup(page.text, "html.parser")
-            
-            paragraphs = soup.find_all("p")
-            article_text = " ".join([p.get_text() for p in paragraphs])
-            if not article_text.strip():
-                article_text = soup.get_text()
-                
-            article_text = article_text[:4000]
-            prompt = f"Сделай краткую и четкую выжимку (summary) статьи:\n\n{article_text}"
-            
-            answer = ask_gemini(prompt)
-            bot.reply_to(message, f"📌 **Выжимка статьи:**\n\n{answer}")
-        else:
-            # Обычный текст
-            answer = ask_gemini(text)
-            bot.reply_to(message, answer)
-            
-    except Exception as e:
-        print("Ошибочка:", e)
-        bot.reply_to(message, f"❌ Реальная ошибка: {e}")
+        bot.edit_message_text(answer, chat_id=message.chat.id, message_id=waiting_msg.message_id)
+    except Exception:
+        bot.reply_to(message, answer)
+
+# Настройка Flask для Render
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return "Bot is running!"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=10000)
 
 if __name__ == "__main__":
     print("⏳ Ожидание завершения предыдущих сессий...")
     time.sleep(3)
-    
-    print("🚀 Запуск ручного пуллинга бота...")
+
+    print("🔄 Запуск ручного пуллинга бота...")
     bot.remove_webhook()
-    
+
+    # Запускаем Flask в отдельном потоке
+    t_flask = Thread(target=run_flask)
+    t_flask.daemon = True
+    t_flask.start()
+
     offset = 0
     while True:
         try:
