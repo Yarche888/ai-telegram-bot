@@ -32,14 +32,34 @@ def check_access(message):
     return message.from_user.id == USER_ID
 
 def ask_gemini(prompt_text):
-    """Прямой запрос к Gemini API через requests, минуя кривые SDK"""
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={GEMINI_KEY}"
+    """Прямой запрос к актуальной модели через стабильный эндпоинт"""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
             "parts": [{"text": prompt_text}]
         }]
     }
+    
+    response = requests.post(url, json=payload, headers=headers, timeout=15)
+    if response.status_code == 200:
+        data = response.json()
+        try:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception:
+            return "Получен странный ответ от модели."
+    else:
+        return f"Ошибка API Google ({response.status_code}): {response.text}"
+    
+    response = requests.post(url, json=payload, headers=headers, timeout=15)
+    if response.status_code == 200:
+        data = response.json()
+        try:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception:
+            return "Получен странный ответ от модели."
+    else:
+        return f"Ошибка API Google ({response.status_code}): {response.text}"
     
     response = requests.post(url, json=payload, headers=headers, timeout=15)
     if response.status_code == 200:
