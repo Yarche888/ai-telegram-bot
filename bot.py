@@ -18,7 +18,7 @@ def check_access(message):
 
 def ask_gemini(prompt_text):
     """Запрос к модели с автоматическим повтором при ошибке 503"""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={GEMINI_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
