@@ -4,7 +4,6 @@ from threading import Thread
 import telebot
 import requests
 from bs4 import BeautifulSoup
-import google.generativeai as genai
 from flask import Flask
 
 # Flask-сервер для удержания порта Render
@@ -27,21 +26,36 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 USER_ID = int(os.environ.get("USER_ID", 0))
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
-# Инициализация Gemini с правильным префиксом модели
-genai.configure(api_key=GEMINI_KEY, transport="rest")
-model = genai.GenerativeModel("models/gemini-1.5-flash")
 bot = telebot.TeleBot(BOT_TOKEN)
 
 def check_access(message):
     return message.from_user.id == USER_ID
 
+def ask_gemini(prompt_text):
+    """Прямой запрос к Gemini API через requests, минуя кривые SDK"""
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt_text}]
+        }]
+    }
+    
+    response = requests.post(url, json=payload, headers=headers, timeout=15)
+    if response.status_code == 200:
+        data = response.json()
+        try:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception:
+            return "Получен странный ответ от модели."
+    else:
+        return f"Ошибка API Google ({response.status_code}): {response.text}"
+
 @bot.message_handler(commands=["start"])
 def send_welcome(message):
     if not check_access(message):
         return
-    bot.reply_to(
-        message, "Привет! Бот на базе Gemini запущен и готов к работе."
-    )
+    bot.reply_to(message, "Привет! Бот на базе Gemini (прямой API) запущен и готов к работе.")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -56,9 +70,7 @@ def handle_message(message):
             bot.reply_to(message, "⏳ Читаю статью, подожди секунду...")
 
             headers = {
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                )
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             }
             page = requests.get(text, headers=headers, timeout=8)
             soup = BeautifulSoup(page.text, "html.parser")
@@ -69,19 +81,17 @@ def handle_message(message):
                 article_text = soup.get_text()
 
             article_text = article_text[:4000]
-
             prompt = f"Сделай краткую и четкую выжимку (summary) статьи:\n\n{article_text}"
-            response = model.generate_content(prompt)
             
-            answer = response.text if hasattr(response, 'text') else str(response)
+            answer = ask_gemini(prompt)
             bot.reply_to(message, f"📌 **Выжимка статьи:**\n\n{answer}")
 
         else:
             # Обычный текст
-            response = model.generate_content(text)
-            answer = response.text if hasattr(response, 'text') else str(response)
+            answer = ask_gemini(text)
             bot.reply_to(message, answer)
 
+### 
     except Exception as e:
         print("Ошибочка:", e)
         bot.reply_to(message, f"❌ Реальная ошибка: {e}")
