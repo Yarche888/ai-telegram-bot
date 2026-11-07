@@ -84,7 +84,7 @@ def handle_message(message):
       bot.reply_to(message, response.text)
 
   except Exception as e:
-        print(f"Ошибочка: {e}"
+        print("Ошибочка:", e)
         bot.reply_to(message, f"❌ Реальная ошибка: {e}")
 
 
