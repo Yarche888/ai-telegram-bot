@@ -32,7 +32,7 @@ def check_access(message):
     return message.from_user.id == USER_ID
 
 def ask_gemini(prompt_text):
-    """Прямой запрос к актуальной модели через стабильный эндпоинт"""
+    """Прямой запрос к модели с увеличенным таймаутом"""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={GEMINI_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
@@ -41,15 +41,21 @@ def ask_gemini(prompt_text):
         }]
     }
     
-    response = requests.post(url, json=payload, headers=headers, timeout=15)
-    if response.status_code == 200:
-        data = response.json()
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception:
-            return "Получен странный ответ от модели."
-    else:
-        return f"Ошибка API Google ({response.status_code}): {response.text}"
+    try:
+        # Увеличили таймаут до 30 секунд
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            try:
+                return data["candidates"][0]["content"]["parts"][0]["text"]
+            except Exception:
+                return "Получен странный ответ от модели."
+        else:
+            return f"Ошибка API Google ({response.status_code}): {response.text}"
+    except requests.exceptions.Timeout:
+        return "⚠️ Превышено время ожидания ответа от Google. Попробуй повторить запрос еще раз."
+    except Exception as e:
+        return f"❌ Ошибка соединения: {e}"
 
 @bot.message_handler(commands=["start"])
 def send_welcome(message):
