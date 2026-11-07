@@ -31,7 +31,7 @@ USER_ID = int(os.environ.get("USER_ID", 0))
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
 genai.configure(api_key=GEMINI_KEY, transport="rest")
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-pro")
 bot = telebot.TeleBot(BOT_TOKEN)
 
 def check_access(message):
