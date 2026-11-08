@@ -13,6 +13,15 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
 # Инициализируем новый официальный клиент Google GenAI
 client = genai.Client(api_key=GEMINI_KEY)
+
+# 🔍 Проверяем доступные модели для твоего ключа (выведется в логи Render)
+print("🔍 Проверяем доступные модели для твоего ключа...")
+try:
+    for m in client.models.list():
+        print(f"Доступна модель: {m.name}")
+except Exception as e:
+    print(f"⚠️ Ошибка при получении списка моделей: {e}")
+
 bot = telebot.TeleBot(BOT_TOKEN)
 
 def check_access(message):
@@ -23,7 +32,7 @@ def ask_gemini(prompt_text, retries=3, delay=5):
     for attempt in range(retries):
         try:
             response = client.models.generate_content(
-                model='gemini-1.5-flash',
+                model='gemini-2.0-flash',
                 contents=prompt_text,
             )
             if response and response.text:
@@ -92,4 +101,3 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"⚠️ Ошибка пуллинга: {e}")
             time.sleep(3)
-        
