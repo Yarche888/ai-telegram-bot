@@ -17,17 +17,16 @@ genai.configure(api_key=GEMINI_KEY)
 # Настраиваем модель с правильным префиксом models/
 model_name = 'models/gemini-1.5-flash'
 model = genai.GenerativeModel(model_name)
-
 bot = telebot.TeleBot(BOT_TOKEN)
 
 def check_access(message):
-    """Проверка безопасности: отвечает только владельцу бота по ID"""
     return message.from_user.id == USER_ID
 
 def ask_gemini(prompt_text, retries=3, delay=5):
     """Запрос через официальный SDK Google с механизмом автоповтора при лимитах (429)"""
     for attempt in range(retries):
         try:
+            # Используем прямой вызов генерации через клиент модели
             generation_model = genai.GenerativeModel(model_name)
             response = generation_model.generate_content(prompt_text)
             if response and response.text:
@@ -61,7 +60,7 @@ def handle_message(message):
     ai_response = ask_gemini(message.text)
     bot.reply_to(message, ai_response)
 
-# Настройка Flask для Render (чтобы сервис не засыпал)
+# Настройка Flask для Render
 app = Flask(__name__)
 
 @app.route('/')
@@ -93,3 +92,5 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"⚠️ Ошибка пуллинга: {e}")
             time.sleep(3)
+   
+           
