@@ -14,7 +14,7 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_KEY)
 
 # Настраиваем модель
-model = genai.GenerativeModel('gemini-3.8-flash')
+model = genai.GenerativeModel('gemini-2.0-flash')
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -45,8 +45,9 @@ def handle_message(message):
         bot.reply_to(message, "Доступ запрещен.")
         return
     
-    answer = ask_gemini(message.text)
-    bot.reply_to(message, answer)
+    # Получаем ответ от Gemini и отправляем в чат
+    ai_response = ask_gemini(message.text)
+    bot.reply_to(message, ai_response)
 
 # Настройка Flask для Render
 app = Flask(__name__)
