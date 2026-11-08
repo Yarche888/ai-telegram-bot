@@ -14,40 +14,32 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 # Инициализируем новый официальный клиент Google GenAI
 client = genai.Client(api_key=GEMINI_KEY)
 
-# 🔍 Проверяем доступные модели для твоего ключа (выведется в логи Render)
-print("🔍 Проверяем доступные модели для твоего ключа...")
-try:
-    for m in client.models.list():
-        print(f"Доступна модель: {m.name}")
-except Exception as e:
-    print(f"⚠️ Ошибка при получении списка моделей: {e}")
-
 bot = telebot.TeleBot(BOT_TOKEN)
 
 def check_access(message):
     return message.from_user.id == USER_ID
 
 def ask_gemini(prompt_text, retries=3, delay=5):
-    """Запрос через актуальный клиент Google GenAI с автоповтором при перегрузке (429)"""
+    """Запрос через современный Interactions API (v1beta/interactions)"""
     for attempt in range(retries):
         try:
-            response = client.models.generate_content(
-                model='models/gemini-2.5-flash',  # <-- указали полное имя из логов
-                contents=prompt_text,
+            # Используем актуальный метод клиентских взаимодействий из Interactions API
+            interaction = client.interactions.create(
+                model="gemini-3.8-flash",
+                input=prompt_text
             )
-            if response and response.text:
-                return response.text
+            if interaction and interaction.output_text:
+                return interaction.output_text
             else:
                 return "⚠️ Модель вернула пустой ответ."
         except APIError as e:
-            # Обрабатываем ошибки API, включая лимиты
             if "429" in str(e) or "ResourceExhausted" in str(e):
                 if attempt < retries - 1:
-                    print(f"⚠️ Превышен лимит запросов (429). Ждем {delay} сек. (попытка {attempt + 2}/{retries})...")
+                    print(f"⚠️ Превышен лимит запросов (429). Ждем {delay} сек...")
                     time.sleep(delay)
                     continue
                 else:
-                    return "❌ Слишком много запросов. Лимит исчерпан, попробуй чуть позже."
+                    return "❌ Лимит запросов исчерпан, попробуй позже."
             else:
                 return f"❌ Ошибка API Gemini: {e}"
         except Exception as e:
@@ -58,7 +50,7 @@ def send_welcome(message):
     if not check_access(message):
         bot.reply_to(message, "Доступ запрещен.")
         return
-    bot.reply_to(message, "Привет! Бот на новом клиенте Google GenAI запущен и готов к работе.")
+    bot.reply_to(message, "Привет! Бот на актуальном Interactions API запущен и готов к работе.")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
