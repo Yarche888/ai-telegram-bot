@@ -14,26 +14,30 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 # Инициализируем официальный SDK Google Gemini
 genai.configure(api_key=GEMINI_KEY)
 
-# Настраиваем модель (перешли на 1.5-flash с комфортным лимитом)
-model = genai.GenerativeModel('models/gemini-1.5-flash')
-
+# Настраиваем модель через официальный метод
+model = genai.GenerativeModel('gemini-1.5-flash')
 bot = telebot.TeleBot(BOT_TOKEN)
 
 def check_access(message):
     return message.from_user.id == USER_ID
 
+# Инициализация модели
+model_name = 'gemini-1.5-flash'
+
 def ask_gemini(prompt_text, retries=3, delay=5):
     """Запрос через официальный SDK Google с механизмом автоповтора при лимитах (429)"""
     for attempt in range(retries):
         try:
-            response = model.generate_content(prompt_text)
+            # Используем прямой вызов генерации через клиент модели
+            generation_model = genai.GenerativeModel(model_name)
+            response = generation_model.generate_content(prompt_text)
             if response and response.text:
                 return response.text
             else:
                 return "⚠️ Модель вернула пустой ответ."
         except ResourceExhausted:
             if attempt < retries - 1:
-                print(f"⚠️ Превышен лимит запросов (429). Ждем {delay} сек. и повторяем (попытка {attempt + 2}/{retries})...")
+                print(f"⚠️ Превышен лимит запросов (429). Ждем {delay} сек. (попытка {attempt + 2}/{retries})...")
                 time.sleep(delay)
                 continue
             else:
