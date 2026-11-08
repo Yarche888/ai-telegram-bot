@@ -23,7 +23,7 @@ def ask_gemini(prompt_text, retries=3, delay=5):
     """Запрос через современный Interactions API (v1beta/interactions)"""
     for attempt in range(retries):
         try:
-            # Используем актуальный метод клиентских взаимодействий из Interactions API
+            # Используем актуальный метод клиентских взаимодействий из Interactions API[cite: 1]
             interaction = client.interactions.create(
                 model="gemini-3.8-flash",
                 input=prompt_text
