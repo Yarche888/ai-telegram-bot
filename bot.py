@@ -20,7 +20,7 @@ def check_access(message):
     return message.from_user.id == USER_ID
 
 def ask_gemini(prompt_text, retries=3, delay=5):
-    """Запрос через современный Interactions API (v1beta/interactions)"""
+    """Запрос через современный Interactions API (v1beta/interactions)[cite: 1]"""
     for attempt in range(retries):
         try:
             # Используем актуальный метод клиентских взаимодействий из Interactions API[cite: 1]
