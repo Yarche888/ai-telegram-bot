@@ -1,10 +1,12 @@
 import os
 import time
 from threading import Thread
+from datetime import datetime, timedelta
 import telebot
 from flask import Flask
 from google import genai
 from google.genai.errors import APIError
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # Загружаем переменные окружения
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -18,6 +20,10 @@ client = genai.Client(
 )
 
 bot = telebot.TeleBot(BOT_TOKEN)
+
+# Инициализируем планировщик для будильников и напоминаний
+scheduler = BackgroundScheduler()
+scheduler.start()
 
 def check_access(message):
     return message.from_user.id == USER_ID
@@ -48,12 +54,74 @@ def ask_gemini(prompt_text, retries=3, delay=5):
         except Exception as e:
             return f"❌ Ошибка при обращении к агенту: {e}"
 
+def trigger_alarm(chat_id, text):
+    """Функция будильника, которая сработает в назначенное время"""
+    try:
+        bot.send_message(
+            chat_id, 
+            f"⏰ **Вставай! Время пришло!**\n\n💬 Заметка: {text}", 
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        print(f"⚠️ Ошибка отправки будильника: {e}")
+
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     if not check_access(message):
         bot.reply_to(message, "Доступ запрещен.")
         return
-    bot.reply_to(message, "Привет! Бот на агенте (v1beta) запущен и готов к работе.")
+    bot.reply_to(
+        message, 
+        "Привет! Бот на агенте (v1beta) запущен и готов к работе.\n\n"
+        "⏰ Чтобы поставить будильник, используй команду:\n"
+        "`/alarm ЧЧ:ММ Текст напоминания` (например: `/alarm 07:30 Вставать и пить кофе`)",
+        parse_mode="Markdown"
+    )
+
+@bot.message_handler(commands=['alarm'])
+def set_alarm(message):
+    if not check_access(message):
+        bot.reply_to(message, "Доступ запрещен.")
+        return
+    
+    args = message.text.split(maxsplit=2)
+    if len(args) < 2:
+        bot.reply_to(
+            message, 
+            "⚠️ Укажи время в формате ЧЧ:ММ. Пример:\n`/alarm 07:30 Вставать!`", 
+            parse_mode="Markdown"
+        )
+        return
+    
+    time_str = args[1]
+    alarm_text = args[2] if len(args) > 2 else "Пора просыпаться!"
+    
+    try:
+        now = datetime.now()
+        alarm_time = datetime.strptime(time_str, "%H:%M").replace(
+            year=now.year, month=now.month, day=now.day
+        )
+        
+        # Если указанное время уже прошло сегодня, ставим на завтра
+        if alarm_time <= now:
+            alarm_time += timedelta(days=1)
+            
+        # Добавляем задачу в планировщик
+        scheduler.add_job(
+            trigger_alarm, 
+            'date', 
+            run_date=alarm_time, 
+            args=[message.chat.id, alarm_text]
+        )
+        
+        bot.reply_to(
+            message, 
+            f"✅ Будильник успешно установлен на **{alarm_time.strftime('%Y-%m-%d %H:%M')}**!", 
+            parse_mode="Markdown"
+        )
+        
+    except ValueError:
+        bot.reply_to(message, "❌ Неверный формат времени. Используй ЧЧ:ММ (например, 07:30).")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -61,21 +129,16 @@ def handle_message(message):
         bot.reply_to(message, "Доступ запрещен.")
         return
     
-    # Отправляем предварительный статус, чтобы видеть, что запрос принят
     status_msg = bot.reply_to(message, "⏳ Секунду, агент анализирует запрос...")
-    
-    # Получаем ответ от агента (может занять время при сложном поиске)
     ai_response = ask_gemini(message.text)
     
     try:
-        # Редактируем статусное сообщение на финальный результат
         bot.edit_message_text(
             chat_id=message.chat.id,
             message_id=status_msg.message_id,
             text=ai_response
         )
     except Exception:
-        # Если отредактировать не получилось, отправляем новым сообщением
         bot.reply_to(message, ai_response)
 
 # Настройка Flask для Render и Keep-Alive пингера
