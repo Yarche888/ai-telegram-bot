@@ -92,8 +92,12 @@ if __name__ == "__main__":
     print("⏳ Ожидание завершения предыдущих сессий...")
     time.sleep(3)
 
-    print("🔄 Запуск ручного пуллинга бота...")
+    print("🔄 Сбрасываем вебхуки и запускаем пуллинг...")
     bot.remove_webhook()
+    try:
+        bot.delete_webhook(drop_pending_updates=True)
+    except Exception:
+        pass
 
     # Запускаем Flask в отдельном потоке
     t_flask = Thread(target=run_flask)
