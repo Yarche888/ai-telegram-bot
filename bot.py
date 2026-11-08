@@ -61,10 +61,24 @@ def handle_message(message):
         bot.reply_to(message, "Доступ запрещен.")
         return
     
+    # Отправляем предварительный статус, чтобы видеть, что запрос принят
+    status_msg = bot.reply_to(message, "⏳ Секунду, агент анализирует запрос...")
+    
+    # Получаем ответ от агента (может занять время при сложном поиске)
     ai_response = ask_gemini(message.text)
-    bot.reply_to(message, ai_response)
+    
+    try:
+        # Редактируем статусное сообщение на финальный результат
+        bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=status_msg.message_id,
+            text=ai_response
+        )
+    except Exception:
+        # Если отредактировать не получилось, отправляем новым сообщением
+        bot.reply_to(message, ai_response)
 
-# Настройка Flask для Render
+# Настройка Flask для Render и Keep-Alive пингера
 app = Flask(__name__)
 
 @app.route('/')
