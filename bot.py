@@ -32,7 +32,7 @@ def ask_gemini(prompt_text, retries=3, delay=5):
     for attempt in range(retries):
         try:
             response = client.models.generate_content(
-                model='gemini-2.0-flash',
+                model='models/gemini-2.5-flash',  # <-- указали полное имя из логов
                 contents=prompt_text,
             )
             if response and response.text:
