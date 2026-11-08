@@ -11,8 +11,11 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 USER_ID = int(os.environ.get("USER_ID", 0))
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
-# Инициализируем новый официальный клиент Google GenAI
-client = genai.Client(api_key=GEMINI_KEY)
+# Инициализируем клиент с принудительным использованием v1beta API
+client = genai.Client(
+    api_key=GEMINI_KEY,
+    http_options={'api_version': 'v1beta'}
+)
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -20,10 +23,9 @@ def check_access(message):
     return message.from_user.id == USER_ID
 
 def ask_gemini(prompt_text, retries=3, delay=5):
-    """Запрос через управляемого агента по документации Interactions API"""
+    """Запрос через управляемого агента с версией v1beta"""
     for attempt in range(retries):
         try:
-            # Используем агента antigravity-preview-09-2026 в удаленной среде[cite: 1]
             interaction = client.interactions.create(
                 agent="antigravity-preview-09-2026",
                 input=prompt_text,
@@ -51,7 +53,7 @@ def send_welcome(message):
     if not check_access(message):
         bot.reply_to(message, "Доступ запрещен.")
         return
-    bot.reply_to(message, "Привет! Бот на управляемом агенте запущен и готов к работе.")
+    bot.reply_to(message, "Привет! Бот на агенте (v1beta) запущен и готов к работе.")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
