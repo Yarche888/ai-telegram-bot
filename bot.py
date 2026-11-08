@@ -14,8 +14,8 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 # Инициализируем официальный SDK Google Gemini
 genai.configure(api_key=GEMINI_KEY)
 
-# Настраиваем модель с правильным префиксом models/
-model_name = 'models/gemini-1.5-flash'
+# Указываем имя модели без префикса models/, чтобы старая версия SDK не падала в 404
+model_name = 'gemini-1.5-flash'
 model = genai.GenerativeModel(model_name)
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -26,7 +26,6 @@ def ask_gemini(prompt_text, retries=3, delay=5):
     """Запрос через официальный SDK Google с механизмом автоповтора при лимитах (429)"""
     for attempt in range(retries):
         try:
-            # Используем прямой вызов генерации через клиент модели
             generation_model = genai.GenerativeModel(model_name)
             response = generation_model.generate_content(prompt_text)
             if response and response.text:
@@ -48,7 +47,7 @@ def send_welcome(message):
     if not check_access(message):
         bot.reply_to(message, "Доступ запрещен.")
         return
-    bot.reply_to(message, "Привет! Бот на официальном SDK Gemini (1.5-flash) запущен и готов к работе.")
+    bot.reply_to(message, "Привет! Бот на официальном SDK Gemini запущен и готов к работе.")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -92,5 +91,3 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"⚠️ Ошибка пуллинга: {e}")
             time.sleep(3)
-   
-           
