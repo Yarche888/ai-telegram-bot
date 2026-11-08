@@ -20,18 +20,19 @@ def check_access(message):
     return message.from_user.id == USER_ID
 
 def ask_gemini(prompt_text, retries=3, delay=5):
-    """Запрос через современный Interactions API (v1beta/interactions)"""
+    """Запрос через управляемого агента по документации Interactions API"""
     for attempt in range(retries):
         try:
-            # Используем актуальный метод клиентских взаимодействий из Interactions API[cite: 1]
+            # Используем агента antigravity-preview-09-2026 в удаленной среде[cite: 1]
             interaction = client.interactions.create(
-                model="gemini-3.8-flash",
-                input=prompt_text
+                agent="antigravity-preview-09-2026",
+                input=prompt_text,
+                environment="remote"
             )
             if interaction and interaction.output_text:
                 return interaction.output_text
             else:
-                return "⚠️ Модель вернула пустой ответ."
+                return "⚠️ Агент вернул пустой ответ."
         except APIError as e:
             if "429" in str(e) or "ResourceExhausted" in str(e):
                 if attempt < retries - 1:
@@ -43,14 +44,14 @@ def ask_gemini(prompt_text, retries=3, delay=5):
             else:
                 return f"❌ Ошибка API Gemini: {e}"
         except Exception as e:
-            return f"❌ Ошибка при обращении к Gemini: {e}"
+            return f"❌ Ошибка при обращении к агенту: {e}"
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     if not check_access(message):
         bot.reply_to(message, "Доступ запрещен.")
         return
-    bot.reply_to(message, "Привет! Бот на актуальном Interactions API запущен и готов к работе.")
+    bot.reply_to(message, "Привет! Бот на управляемом агенте запущен и готов к работе.")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
