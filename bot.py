@@ -14,9 +14,8 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 # Инициализируем официальный SDK Google Gemini
 genai.configure(api_key=GEMINI_KEY)
 
-# Указываем имя модели без префикса models/, чтобы старая версия SDK не падала в 404
-model_name = 'gemini-1.5-flash'
-model = genai.GenerativeModel(model_name)
+# Создаем глобальный инстанс модели правильно для версии 0.3.x
+model = genai.GenerativeModel('gemini-1.5-flash')
 bot = telebot.TeleBot(BOT_TOKEN)
 
 def check_access(message):
@@ -26,8 +25,8 @@ def ask_gemini(prompt_text, retries=3, delay=5):
     """Запрос через официальный SDK Google с механизмом автоповтора при лимитах (429)"""
     for attempt in range(retries):
         try:
-            generation_model = genai.GenerativeModel(model_name)
-            response = generation_model.generate_content(prompt_text)
+            # Используем уже созданный глобальный объект модели
+            response = model.generate_content(prompt_text)
             if response and response.text:
                 return response.text
             else:
